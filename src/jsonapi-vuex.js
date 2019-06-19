@@ -7,7 +7,7 @@ import cloneDeep from 'lodash.clonedeep'
 import jp from 'jsonpath/jsonpath.min'
 
 class RecordError extends Error {
-  constructor(message, value) {
+  constructor (message, value) {
     super(message)
     this.value = value
   }
@@ -31,7 +31,7 @@ let jvConfig = {
   // Delete old records not contained in an update (on a per-type basis).
   clearOnUpdate: false,
   // Only preserve new or modified attributes in a patch, compared to the store record.
-  cleanPatch: false,
+  cleanPatch: false
 }
 
 const jvtag = jvConfig['jvtag']
@@ -73,11 +73,16 @@ const mutations = () => {
     setStatus: (state, { id, status }) => {
       Vue.set(state[jvtag], id, { status: status, time: Date.now() })
     },
+    setMeta: (state, meta) => {
+      for (let [key, item] of Object.entries(meta)) {
+        Vue.set(state[jvtag], key, item)
+      }
+    },
     deleteStatus: (state, id) => {
       if (id in state[jvtag]) {
         Vue.delete(state[jvtag], id)
       }
-    },
+    }
   }
 }
 
@@ -95,6 +100,7 @@ const actions = (api) => {
       let action = api(apiConf)
         .then((results) => {
           processIncludedRecords(context, results)
+          processMeta(context, results)
 
           let resData = jsonapiToNorm(results.data.data)
           context.commit('addRecords', resData)
@@ -105,7 +111,7 @@ const actions = (api) => {
           resData = preserveJSON(resData, results.data)
           context.commit('setStatus', {
             id: actionId,
-            status: STATUS_SUCCESS,
+            status: STATUS_SUCCESS
           })
           return resData
         })
@@ -128,7 +134,7 @@ const actions = (api) => {
       // so must define such vars in a higher scope
 
       let relNames = []
-      //Get initial record
+      // Get initial record
       let action = context
         .dispatch('get', args)
         .then((record) => {
@@ -185,15 +191,15 @@ const actions = (api) => {
             let normItem = {
               [relName]: {
                 [result[jvtag]['type']]: {
-                  [result[jvtag]['id']]: result,
-                },
-              },
+                  [result[jvtag]['id']]: result
+                }
+              }
             }
             merge(related, normItem)
           })
           context.commit('setStatus', {
             id: actionId,
-            status: STATUS_SUCCESS,
+            status: STATUS_SUCCESS
           })
           return related
         })
@@ -223,7 +229,7 @@ const actions = (api) => {
           context.commit('addRecords', data)
           context.commit('setStatus', {
             id: actionId,
-            status: STATUS_SUCCESS,
+            status: STATUS_SUCCESS
           })
           return preserveJSON(context.getters.get(data), results.data)
         })
@@ -262,7 +268,7 @@ const actions = (api) => {
 
           context.commit('setStatus', {
             id: actionId,
-            status: STATUS_SUCCESS,
+            status: STATUS_SUCCESS
           })
           return preserveJSON(context.getters.get(data), results.data)
         })
@@ -287,7 +293,7 @@ const actions = (api) => {
           context.commit('deleteRecord', data)
           context.commit('setStatus', {
             id: actionId,
-            status: STATUS_SUCCESS,
+            status: STATUS_SUCCESS
           })
           if (results.data) {
             return preserveJSON(jsonapiToNorm(results.data.data), results.data)
@@ -308,15 +314,15 @@ const actions = (api) => {
       // Use a new actions 'instance' instead of 'dispatch' to allow context override
       return actions(api).get(nocontext, args)
     },
-    get fetch() {
+    get fetch () {
       return this.get
     },
-    get create() {
+    get create () {
       return this.post
     },
-    get update() {
+    get update () {
       return this.patch
-    },
+    }
   }
 }
 
@@ -370,7 +376,7 @@ const getters = () => {
       if (id in state[jvtag]) {
         return state[jvtag][id]['status']
       }
-    },
+    }
   }
 }
 
@@ -387,7 +393,7 @@ const jsonapiModule = (api, conf = {}) => {
 
     mutations: mutations(),
     actions: actions(api),
-    getters: getters(),
+    getters: getters()
   }
 }
 
@@ -437,17 +443,17 @@ const updateRecords = (state, records, merging = jvConfig.mergeRecords) => {
 const addJvHelpers = (obj) => {
   // Add Utility functions to _jv child object
   Object.assign(obj[jvtag], {
-    isRel(name) {
+    isRel (name) {
       return get(obj, [jvtag, 'relationships'], {}).hasOwnProperty(name)
     },
-    isAttr(name) {
+    isAttr (name) {
       return name !== jvtag && obj.hasOwnProperty(name) && !this.isRel(name)
-    },
+    }
   })
   // Use defineProperty as assign copies the values, not the getter function
   // https://github.com/mrichar1/jsonapi-vuex/pull/40#issuecomment-474560508
   Object.defineProperty(obj[jvtag], 'rels', {
-    get() {
+    get () {
       const rel = {}
       for (let [key, val] of Object.entries(obj)) {
         if (this.isRel(key)) {
@@ -455,10 +461,10 @@ const addJvHelpers = (obj) => {
         }
       }
       return rel
-    },
+    }
   })
   Object.defineProperty(obj[jvtag], 'attrs', {
-    get() {
+    get () {
       const att = {}
       for (let [key, val] of Object.entries(obj)) {
         if (key !== jvtag && !this.isRel(key)) {
@@ -466,7 +472,7 @@ const addJvHelpers = (obj) => {
         }
       }
       return att
-    },
+    }
   })
   return obj
 }
@@ -580,9 +586,10 @@ const unpackArgs = (args) => {
 
 // Get type, id, rels from a restructured object
 const getTypeId = (data) => {
-  let type, id, rel
+  let type, bundle, id, rel
   if (typeof data === 'string') {
-    ;[type, id, rel] = data.replace(/^\//, '').split('/')
+    ;[type, bundle, id, rel] = data.replace(/\-\-/, '/').replace(/^\//, '').split('/')
+    type = type + '--' + bundle
   } else {
     ;({ type, id } = data[jvtag])
   }
@@ -598,12 +605,14 @@ const getURL = (data, post = false) => {
       path = data[jvtag]['links']['self']
     } else {
       let { type, id } = data[jvtag]
-      path = type
+      path = type.replace(/\-\-/, '/')
       // POST endpoints are always to collections, not items
       if (id && !post) {
         path += '/' + id
       }
     }
+  } else {
+    path = path.replace(/\-\-/, '/')
   }
   return path
 }
@@ -616,8 +625,7 @@ const jsonapiToNormItem = (data) => {
   // Move attributes to top-level, nest original jsonapi under _jv
   const norm = Object.assign({ [jvtag]: data }, data['attributes'])
   // Create a new object omitting attributes
-  const { attributes, ...normNoAttrs } = norm[jvtag] // eslint-disable-line no-unused-vars
-  norm[jvtag] = normNoAttrs
+  delete norm[jvtag].attributes
   return norm
 }
 
@@ -641,7 +649,7 @@ const jsonapiToNorm = (data) => {
 // Denormalize an item to jsonapi
 const normToJsonapiItem = (data) => {
   const jsonapi = {}
-  //Pick out expected resource members, if they exist
+  // Pick out expected resource members, if they exist
   for (let member of ['id', 'type', 'relationships', 'meta', 'links']) {
     if (data[jvtag].hasOwnProperty(member)) {
       jsonapi[member] = data[jvtag][member]
@@ -705,6 +713,13 @@ const processIncludedRecords = (context, results) => {
     }
   }
 }
+const processMeta = (context, results) => {
+  let meta = {
+    links: results.data.links,
+    meta: results.data.meta
+  }
+  context.commit('setMeta', meta)
+}
 
 // Export a single object with references to 'private' functions for the test suite
 const _testing = {
@@ -723,7 +738,7 @@ const _testing = {
   addJvHelpers: addJvHelpers,
   updateRecords: updateRecords,
   getURL: getURL,
-  cleanPatch: cleanPatch,
+  cleanPatch: cleanPatch
 }
 
 // Export this module
